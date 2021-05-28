@@ -1,3 +1,5 @@
+#![cfg(feature = "hwlocf")]
+
 use std::sync::{Mutex, MutexGuard};
 
 use anyhow::{format_err, Result};

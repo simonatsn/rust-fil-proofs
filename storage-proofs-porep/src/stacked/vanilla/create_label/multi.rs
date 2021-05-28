@@ -3,8 +3,10 @@ use std::marker::PhantomData;
 use std::mem::{self, size_of};
 use std::sync::{
     atomic::{AtomicU64, Ordering::SeqCst},
-    Arc, MutexGuard,
 };
+#[cfg(feature = "hwlocf")]
+use std::sync::{Arc, MutexGuard};
+
 use std::thread;
 use std::time::Duration;
 
@@ -26,9 +28,11 @@ use storage_proofs_core::{
     util::NODE_SIZE,
 };
 
+#[cfg(feature = "hwlocf")]
+use crate::stacked::vanilla::cores::{bind_core, checkout_core_group, CoreIndex};
+
 use crate::stacked::vanilla::{
     cache::ParentCache,
-    cores::{bind_core, checkout_core_group, CoreIndex},
     create_label::{prepare_layers, read_layer, write_layer},
     graph::{StackedBucketGraph, DEGREE, EXP_DEGREE},
     memory_handling::{setup_create_label_memory, CacheReader},
@@ -209,6 +213,7 @@ fn create_layer_labels(
     exp_labels: Option<&mut MmapMut>,
     num_nodes: u64,
     cur_layer: u32,
+#[cfg(feature = "hwlocf")]
     core_group: Arc<Option<MutexGuard<'_, Vec<CoreIndex>>>>,
 ) -> Result<()> {
     info!("Creating labels for layer {}", cur_layer);
@@ -263,6 +268,7 @@ fn create_layer_labels(
             let ring_buf = &ring_buf;
             let base_parent_missing = &base_parent_missing;
 
+#[cfg(feature = "hwlocf")]
             let core_index = if let Some(cg) = &*core_group {
                 cg.get(i + 1)
             } else {
@@ -273,6 +279,7 @@ fn create_layer_labels(
                 // It will be logged as a warning by `bind_core`.
                 debug!("binding core in producer thread {}", i);
                 // When `_cleanup_handle` is dropped, the previous binding of thread will be restored.
+#[cfg(feature = "hwlocf")]
                 let _cleanup_handle = core_index.map(|c| bind_core(*c));
 
                 create_label_runner(
@@ -445,9 +452,11 @@ pub fn create_labels_for_encoding<Tree: 'static + MerkleTreeTrait, T: AsRef<[u8]
 
     let default_cache_size = DEGREE * 4 * cache_window_nodes;
 
+#[cfg(feature = "hwlocf")]
     let core_group = Arc::new(checkout_core_group());
 
     // When `_cleanup_handle` is dropped, the previous binding of thread will be restored.
+#[cfg(feature = "hwlocf")]
     let _cleanup_handle = (*core_group).as_ref().map(|group| {
         // This could fail, but we will ignore the error if so.
         // It will be logged as a warning by `bind_core`.
@@ -491,6 +500,7 @@ pub fn create_labels_for_encoding<Tree: 'static + MerkleTreeTrait, T: AsRef<[u8]
             },
             node_count,
             layer as u32,
+#[cfg(feature = "hwlocf")]
             core_group.clone(),
         )?;
 
@@ -543,9 +553,11 @@ pub fn create_labels_for_decoding<Tree: 'static + MerkleTreeTrait, T: AsRef<[u8]
 
     let default_cache_size = DEGREE * 4 * cache_window_nodes;
 
+#[cfg(feature = "hwlocf")]
     let core_group = Arc::new(checkout_core_group());
 
     // When `_cleanup_handle` is dropped, the previous binding of thread will be restored.
+#[cfg(feature = "hwlocf")]
     let _cleanup_handle = (*core_group).as_ref().map(|group| {
         // This could fail, but we will ignore the error if so.
         // It will be logged as a warning by `bind_core`.
@@ -581,6 +593,7 @@ pub fn create_labels_for_decoding<Tree: 'static + MerkleTreeTrait, T: AsRef<[u8]
             },
             node_count,
             layer as u32,
+#[cfg(feature = "hwlocf")]
             core_group.clone(),
         )?;
 
